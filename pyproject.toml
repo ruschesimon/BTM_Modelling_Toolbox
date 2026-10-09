@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "package-name"
+version = "0.1.0"
+description = "Graph-based modeling framework for multi-carrier energy systems."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+
+authors = [
+    { name = "Simon Rusche" }
+]
+
+dependencies = []
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+[tool.setuptools]
+package-dir = { "" = "src" }

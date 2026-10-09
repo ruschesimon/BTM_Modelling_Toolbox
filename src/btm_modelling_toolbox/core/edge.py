@@ -1,0 +1,163 @@
+# -------------------- Public Imports --------------------
+
+from __future__ import annotations
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+
+# -------------------- Local Imports --------------------
+
+from .entity import Entity
+from .port import Port
+
+
+# -------------------- Type Checking Imports --------------------
+
+if TYPE_CHECKING:
+    from .carrier import Carrier
+    from .vertex import Vertex
+
+
+# -------------------- Class Definition --------------------
+
+@dataclass(slots=True, kw_only=True)
+class Edge(Entity):
+    source_port: Port
+    sink_port: Port
+
+    def __post_init__(self) -> None:
+        Entity().__post_init__()
+
+        self._validate_ports()
+        self._connect_ports()
+
+    def _validate_ports(self) -> None:
+        if not isinstance(self.source_port, Port):
+            raise TypeError("source_port must be an instance of Port.")
+
+        if not isinstance(self.sink_port, Port):
+            raise TypeError("sink_port must be an instance of Port.")
+
+        if not self.source_port.is_output:
+            raise ValueError(
+                f"Source port {self.source_port.label!r} must be an output port."
+            )
+
+        if not self.sink_port.is_input:
+            raise ValueError(
+                f"Sink port {self.sink_port.label!r} must be an input port."
+            )
+
+        if self.source_port.carrier != self.sink_port.carrier:
+            raise ValueError(
+                "Source and sink port must use the same carrier."
+            )
+
+        if self.source_port.is_connected:
+            raise ValueError(
+                f"Source port {self.source_port.label!r} is already connected."
+            )
+
+        if self.sink_port.is_connected:
+            raise ValueError(
+                f"Sink port {self.sink_port.label!r} is already connected."
+            )
+
+        if self.source_port.vertex is self.sink_port.vertex:
+            raise ValueError(
+                "An edge cannot connect ports of the same vertex."
+            )
+
+    def _connect_ports(self) -> None:
+        self.source_port._connect(self)
+        self.sink_port._connect(self)
+
+    @property
+    def source_vertex(self) -> Vertex:
+        return self.source_port.vertex
+
+    @property
+    def sink_vertex(self) -> Vertex:
+        return self.sink_port.vertex
+
+    @property
+    def carrier(self) -> Carrier:
+        return self.source_port.carrier
+
+
+# -------------------- Class Definition --------------------
+
+@dataclass(slots=True, kw_only=True)
+class BidirectionalEdge(Entity):
+    forward_source_port: Port
+    forward_sink_port: Port
+    backward_source_port: Port
+    backward_sink_port: Port
+
+    forward_edge: Edge = field(
+        init=False,
+        repr=True,
+        compare=True,
+    )
+    backward_edge: Edge = field(
+        init=False,
+        repr=True,
+        compare=True,
+    )
+
+    def __post_init__(self) -> None:
+        Entity().__post_init__()
+
+        self._validate_ports()
+
+        self.forward_edge = Edge(
+            source_port=self.forward_source_port,
+            sink_port=self.forward_sink_port,
+        )
+
+        self.backward_edge = Edge(
+            source_port=self.backward_source_port,
+            sink_port=self.backward_sink_port,
+        )
+
+    def _validate_ports(self) -> None:
+        ports = (
+            self.forward_source_port,
+            self.forward_sink_port,
+            self.backward_source_port,
+            self.backward_sink_port,
+        )
+
+        if not all(isinstance(port, Port) for port in ports):
+            raise TypeError("All ports must be instances of Port.")
+
+        if self.forward_source_port.vertex is not self.backward_sink_port.vertex:
+            raise ValueError(
+                "forward_source_port and backward_sink_port "
+                "must belong to the same vertex."
+            )
+
+        if self.forward_sink_port.vertex is not self.backward_source_port.vertex:
+            raise ValueError(
+                "forward_sink_port and backward_source_port "
+                "must belong to the same vertex."
+            )
+
+        if self.forward_source_port.carrier != self.backward_sink_port.carrier:
+            raise ValueError(
+                "Ports of the first vertex must use the same carrier."
+            )
+
+        if self.forward_sink_port.carrier != self.backward_source_port.carrier:
+            raise ValueError(
+                "Ports of the second vertex must use the same carrier."
+            )
+
+        if self.forward_source_port.carrier != self.forward_sink_port.carrier:
+            raise ValueError(
+                "All ports of a bidirectional edge must use the same carrier."
+            )
+
+    @property
+    def edges(self) -> tuple[Edge, Edge]:
+        return self.forward_edge, self.backward_edge
