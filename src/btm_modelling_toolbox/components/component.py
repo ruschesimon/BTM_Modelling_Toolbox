@@ -11,7 +11,7 @@ from uuid import UUID
 from ..core.entity import Entity
 from ..core.port import Port
 from ..core.vertex import Vertex
-from ..utils.numeric import normalize_numeric_input, ScalarValue, NumericValue
+from ..utils.numeric import normalize_numeric_input, build_time_series, ScalarValue, NumericValue
 
 # -------------------- Class Definition --------------------
 
@@ -46,6 +46,14 @@ class Component(Vertex, ABC):
             allow_negative=False,
             allow_series=False,
         )
+
+    def _parameter_series(self, value: NumericValue, name: str) -> pd.Series:
+        system = self.energy_system
+        if not isinstance(system, EnergySystem):
+            raise TypeError("energy_system must be an instance of EnergySystem.")
+        if not isinstance(system.time_index, pd.RangeIndex):
+            raise TypeError("energy_system.time_index must be a pandas RangeIndex.")
+        return build_time_series(value, name, system.time_index)
 
     '''
     def get_variableCost(self, timeIndex):

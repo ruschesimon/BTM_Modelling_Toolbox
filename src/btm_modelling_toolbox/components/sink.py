@@ -63,21 +63,13 @@ class Sink(Component):
             direction=PortDirection.INPUT,
         ))
 
-    def _capacity_series(self, value: NumericValue, name: str) -> pd.Series:
-        system = self.energy_system
-        if not isinstance(system, EnergySystem):
-            raise TypeError("energy_system must be an instance of EnergySystem.")
-        if not isinstance(system.time_index, pd.RangeIndex):
-            raise TypeError("energy_system.time_index must be a pandas RangeIndex.")
-        return build_time_series(value, name, system.time_index)
-
     @property
     def min_capacity(self) -> pd.Series:
-        return self._capacity_series(self._min_capacity, "min_capacity")
+        return self._parameter_series(self._min_capacity, "min_capacity")
 
     @property
     def max_capacity(self) -> pd.Series:
-        return self._capacity_series(self._max_capacity, "max_capacity")
+        return self._parameter_series(self._max_capacity, "max_capacity")
 
     def _validate_capacities(self) -> None:
         minimum, maximum = self._min_capacity, self._max_capacity
