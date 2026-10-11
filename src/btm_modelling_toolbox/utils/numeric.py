@@ -125,16 +125,16 @@ def build_time_series(
             missing_values = time_series.index[time_series.isna()].tolist()
             raise ValueError(f"{name} contains missing values at: {missing_values}")
 
-        elif isinstance(value, Real) and not isinstance(value, (bool, np.bool_)):
-            time_series = pd.Series(
-                data=np.float64(value),
-                index=time_index,
-                dtype=np.float64,
-            )
+    elif isinstance(value, Real) and not isinstance(value, (bool, np.bool_)):
+        time_series = pd.Series(
+            data=np.float64(value),
+            index=time_index,
+            dtype=np.float64,
+        )
 
-        else:
-            raise TypeError(f"{name} must be either a real number or a pandas Series.")
+    else:
+        raise TypeError(f"{name} must be either a real number or a pandas Series.")
 
-        time_series.name = name
+    time_series.name = name
 
-        return time_series
+    return time_series

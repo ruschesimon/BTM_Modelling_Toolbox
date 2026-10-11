@@ -10,6 +10,9 @@ from .core.entity import Entity
 from .core.port import Port, PortDirection
 from .core.vertex import Vertex
 
+from .components.sink import Sink
+from .network.system import EnergySystem
+
 '''
 from .components.component import Component
 from .components.converter import Converter
