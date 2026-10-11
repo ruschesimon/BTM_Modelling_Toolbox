@@ -12,6 +12,7 @@ from .core.vertex import Vertex
 
 from .components.sink import Sink
 from .components.source import Source
+from .components.storage import Storage
 from .network.system import EnergySystem
 
 '''
@@ -37,6 +38,7 @@ __all__ = [
     "Converter",
     "Sink",
     "Source",
+    "Storage",
     "Bus",
     "EnergySystem",
 ]
