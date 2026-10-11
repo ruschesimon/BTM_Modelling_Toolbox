@@ -11,6 +11,7 @@ from .core.port import Port, PortDirection
 from .core.vertex import Vertex
 
 from .components.sink import Sink
+from .components.source import Source
 from .network.system import EnergySystem
 
 '''

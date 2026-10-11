@@ -48,7 +48,8 @@ class Sink(Component):
         super().__init__(
             label=label, variable_cost=variable_cost, fixed_cost=fixed_cost,
         )
-        self.energy_system = energy_system
+        if energy_system is not None:
+            self._set_energy_system(energy_system)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -62,18 +63,8 @@ class Sink(Component):
             direction=PortDirection.INPUT,
         ))
 
-    @property
-    def energy_system(self) -> EnergySystem | None:
-        return self._energy_system
-
-    @energy_system.setter
-    def energy_system(self, value: EnergySystem | None) -> None:
-        self._energy_system = value
-
     def _capacity_series(self, value: NumericValue, name: str) -> pd.Series:
         system = self.energy_system
-        if system is None:
-            raise RuntimeError("Sink is not assigned to an EnergySystem.")
         if not isinstance(system, EnergySystem):
             raise TypeError("energy_system must be an instance of EnergySystem.")
         if not isinstance(system.time_index, pd.RangeIndex):

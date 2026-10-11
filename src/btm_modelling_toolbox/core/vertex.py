@@ -4,7 +4,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Iterable, Mapping
+from typing import TYPE_CHECKING, Iterable, Mapping
 from unicodedata import name
 from uuid import UUID
 
@@ -13,6 +13,9 @@ from uuid import UUID
 
 from .entity import Entity
 from .port import Port
+
+if TYPE_CHECKING:
+    from ..network.system import EnergySystem
 
 
 # -------------------- Class Definition --------------------
@@ -49,7 +52,7 @@ class Vertex(Entity, ABC):
     @property
     def energy_system(self) -> EnergySystem:
         if self._energy_system is None:
-            raise RuntimeError(f"Vertex {self.name!r} is not assigned to an EnergySystem.")
+            raise RuntimeError(f"Vertex {self.label!r} is not assigned to an EnergySystem.")
 
         return self._energy_system
 
@@ -181,8 +184,8 @@ class Vertex(Entity, ABC):
 
 
     def _set_energy_system(self, energy_system: EnergySystem) -> None:
-        if not self.has_energy_system:
-            raise ValueError(f"Vertex {self.name!r} is already assigned to an EnergySystem.")
+        if self.has_energy_system:
+            raise ValueError(f"Vertex {self.label!r} is already assigned to an EnergySystem.")
 
         self._energy_system = energy_system
 

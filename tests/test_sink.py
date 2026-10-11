@@ -3,24 +3,33 @@ import unittest
 import pandas as pd
 from pandas.testing import assert_series_equal
 
-from btm_modelling_toolbox import Electricity, EnergySystem, Sink
+from btm_modelling_toolbox import Electricity, EnergySystem, Sink, PortDirection
 
 
 class SinkTests(unittest.TestCase):
+    component_class = Sink
+    port_direction = PortDirection.INPUT
+
     def sink(self, **kwargs):
-        return Sink(carrier=Electricity(), **kwargs)
+        return self.component_class(carrier=Electricity(), **kwargs)
 
     def test_defaults_and_later_assignment(self):
         sink = self.sink()
-        self.assertIsNone(sink.energy_system)
+        self.assertFalse(sink.has_energy_system)
+        with self.assertRaises(RuntimeError):
+            _ = sink.energy_system
         for name in ('min_capacity', 'max_capacity'):
             with self.assertRaises(RuntimeError):
                 getattr(sink, name)
         index = pd.RangeIndex(2, 8, 2)
-        sink.energy_system = EnergySystem(time_index=index)
+        sink._set_energy_system(EnergySystem(time_index=index))
         assert_series_equal(sink.min_capacity, pd.Series(0., index=index, name='min_capacity'))
         assert_series_equal(sink.max_capacity, pd.Series(float('inf'), index=index, name='max_capacity'))
         self.assertEqual(len(sink.ports), 1)
+        port = next(iter(sink.ports.values()))
+        self.assertIs(port.direction, self.port_direction)
+        self.assertIs(port.vertex, sink)
+        self.assertIs(port.carrier, sink.carrier)
 
     def test_scalar_and_series_keywords(self):
         index = pd.RangeIndex(3)
@@ -46,7 +55,8 @@ class SinkTests(unittest.TestCase):
         sink = self.sink(min_capacity=pd.Series([3, 1, 2], index=[2, 0, 1]),
                          energy_system=EnergySystem(time_index=pd.RangeIndex(3)))
         self.assertEqual(sink.min_capacity.tolist(), [1., 2., 3.])
-        sink.energy_system = EnergySystem(time_index=pd.RangeIndex(4))
+        sink._remove_energy_system()
+        sink._set_energy_system(EnergySystem(time_index=pd.RangeIndex(4)))
         with self.assertRaises(KeyError):
             _ = sink.min_capacity
 
@@ -62,6 +72,22 @@ class SinkTests(unittest.TestCase):
                          energy_system=EnergySystem(time_index=pd.RangeIndex(2)))
         with self.assertRaises(ValueError):
             _ = sink.min_capacity
+
+
+    def test_energy_system_assignment_lifecycle(self):
+        system = EnergySystem(time_index=pd.RangeIndex(2))
+        sink = self.sink(energy_system=system)
+        self.assertTrue(sink.has_energy_system)
+        self.assertIs(sink.energy_system, system)
+        with self.assertRaises(ValueError):
+            sink._set_energy_system(EnergySystem(time_index=pd.RangeIndex(3)))
+        self.assertIs(sink.energy_system, system)
+        sink._remove_energy_system()
+        self.assertFalse(sink.has_energy_system)
+        with self.assertRaises(RuntimeError):
+            _ = sink.min_capacity
+        sink._set_energy_system(system)
+        self.assertIs(sink.energy_system, system)
 
 
 if __name__ == '__main__':
