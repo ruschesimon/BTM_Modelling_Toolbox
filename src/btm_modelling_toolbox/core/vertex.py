@@ -179,11 +179,13 @@ class Vertex(Entity, ABC):
     def has_energy_system(self) -> bool:
         return self._energy_system is not None
 
+
     def _set_energy_system(self, energy_system: EnergySystem) -> None:
-        if self._energy_system is not None:
+        if not self.has_energy_system:
             raise ValueError(f"Vertex {self.name!r} is already assigned to an EnergySystem.")
 
         self._energy_system = energy_system
+
 
     def _remove_energy_system(self) -> None:
         self._energy_system = None
