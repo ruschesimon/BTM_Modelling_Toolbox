@@ -40,11 +40,11 @@ class EnergySystem(Entity):
     _vertices: dict[UUID, Vertex] = field(default_factory=dict, init=False, repr=False)
     _edges: dict[UUID, Edge] = field(default_factory=dict, init=False, repr=False)
     _time_index: pd.RangeIndex | None = field(default=None, init=False, repr=False)
-    _time_increment: float | None = field(default=None, init=False, repr=False)
+    _time_increment: _time_increment: timedelta | None = field(default=None, init=False, repr=False)
 
     def __init__(self, *, label: str | None = None,
                  time_index: pd.RangeIndex | None = None,
-                 time_increment: Real | None = None) -> None:
+                 time_increment: timedelta | None = None) -> None:
         self._vertices = {}
         self._edges = {}
         self.time_index = time_index
@@ -65,17 +65,16 @@ class EnergySystem(Entity):
         self._time_index = value
 
     @property
-    def time_increment(self) -> float | None:
+    def time_increment(self) -> timedelta | None:
         return self._time_increment
 
     @time_increment.setter
-    def time_increment(self, value: Real | None) -> None:
+    def time_increment(self, value: timedelta | None) -> None:
         if value is not None:
-            if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
-                raise TypeError('time_increment must be a real number of seconds or None.')
-            if not np.isfinite(value) or value <= 0:
+            if isinstance(value, (bool, np.bool_)) or not isinstance(value, timedelta):
+                raise TypeError('time_increment must be a timedelta or None.')
+            if not np.isfinite(value.total_seconds()) or value <= timedelta(0):
                 raise ValueError('time_increment must be finite and greater than zero.')
-            value = float(value)
         self._time_increment = value
 
     @property
@@ -83,7 +82,7 @@ class EnergySystem(Entity):
         """Duration of a time step in hours (legacy tao)."""
         if self.time_increment is None:
             raise RuntimeError('time_increment is not configured.')
-        return self.time_increment / 3600
+        return self.time_increment / timedelta(hours=1)
 
     def set_temporal_context(self, start: datetime, end: datetime, step: timedelta) -> None:
         if not isinstance(start, datetime) or not isinstance(end, datetime):
@@ -105,7 +104,7 @@ class EnergySystem(Entity):
             raise ValueError('end must be later than start.')
         index = pd.RangeIndex(timestamps[0], timestamps[1], int(seconds))
         self.time_index = index
-        self.time_increment = seconds
+        self.time_increment = step
 
     @property
     def vertices(self) -> Mapping[UUID, Vertex]:
@@ -118,14 +117,12 @@ class EnergySystem(Entity):
     @property
     def components(self) -> Mapping[UUID, Component]:
         from ..components.component import Component
-        return MappingProxyType({key: v for key, v in self._vertices.items()
-                                 if isinstance(v, Component)})
+        return MappingProxyType({key: v for key, v in self._vertices.items() if isinstance(v, Component)})
 
     @property
     def buses(self) -> Mapping[UUID, Bus]:
         from .bus import Bus
-        return MappingProxyType({key: v for key, v in self._vertices.items()
-                                 if isinstance(v, Bus)})
+        return MappingProxyType({key: v for key, v in self._vertices.items() if isinstance(v, Bus)})
 
     @staticmethod
     def _require_uuid(value) -> None:
