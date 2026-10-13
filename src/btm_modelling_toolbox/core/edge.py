@@ -57,14 +57,7 @@ class Edge(Entity):
 
     @property
     def variable_cost(self) -> pd.Series:
-        system = self.energy_system
-        if system is None:
-            raise RuntimeError("Edge is not assigned to an EnergySystem.")
-        if not isinstance(system, EnergySystem):
-            raise TypeError("energy_system must be an instance of EnergySystem.")
-        if not isinstance(system.time_index, pd.RangeIndex):
-            raise TypeError("energy_system.time_index must be a pandas RangeIndex.")
-        return build_time_series(self._variable_cost, "variable_cost", system.time_index)
+        return self._parameter_series(self._variable_cost, "variable_cost")
 
     def __post_init__(self) -> None:
         Entity.__post_init__(self)
@@ -112,6 +105,14 @@ class Edge(Entity):
     def _connect_ports(self) -> None:
         self.source_port._connect(self)
         self.sink_port._connect(self)
+
+    def _parameter_series(self, value: NumericValue, name: str) -> pd.Series:
+        system = self.energy_system
+        if not isinstance(system, EnergySystem):
+            raise TypeError("energy_system must be an instance of EnergySystem.")
+        if not isinstance(system.time_index, pd.RangeIndex):
+            raise TypeError("energy_system.time_index must be a pandas RangeIndex.")
+        return build_time_series(value, name, system.time_index)
 
     @property
     def source_vertex(self) -> Vertex:
