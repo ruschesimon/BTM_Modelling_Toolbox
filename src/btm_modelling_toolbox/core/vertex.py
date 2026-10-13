@@ -110,7 +110,7 @@ class Vertex(Entity, ABC):
         if len(incoming_ids) != len(set(incoming_ids)):
             raise ValueError("The provided ports contain duplicate UUIDs.")
 
-        incoming_names = [port.name for port in ports]
+        incoming_names = [port.label for port in ports]
         if len(incoming_names) != len(set(incoming_names)):
             raise ValueError("The provided ports contain duplicate names.")
 

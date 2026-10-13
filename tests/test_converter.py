@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 from uuid import uuid4
 
 import pandas as pd
@@ -93,7 +94,7 @@ class ConverterTests(unittest.TestCase):
         for name in self.names:
             with self.assertRaises(RuntimeError):
                 getattr(converter, name)
-        for system in [object(), EnergySystem(time_index=pd.Index([0, 1]))]:
+        for system in [object(), Mock(spec=EnergySystem, time_index=pd.Index([0, 1]))]:
             converter._set_energy_system(system)
             with self.assertRaises(TypeError):
                 _ = converter.input_conversion

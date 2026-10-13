@@ -108,6 +108,8 @@ class Edge(Entity):
 
     def _parameter_series(self, value: NumericValue, name: str) -> pd.Series:
         system = self.energy_system
+        if system is None:
+            raise RuntimeError("Edge is not assigned to an EnergySystem.")
         if not isinstance(system, EnergySystem):
             raise TypeError("energy_system must be an instance of EnergySystem.")
         if not isinstance(system.time_index, pd.RangeIndex):

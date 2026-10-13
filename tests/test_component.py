@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 import pandas as pd
 from pandas.testing import assert_series_equal
@@ -49,7 +50,7 @@ class ComponentCostTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     _ = component.variable_cost
                 for system in [object(), EnergySystem(time_index=None),
-                               EnergySystem(time_index=pd.Index([0, 1]))]:
+                               Mock(spec=EnergySystem, time_index=pd.Index([0, 1]))]:
                     component._set_energy_system(system)
                     with self.assertRaises(TypeError):
                         _ = component.variable_cost

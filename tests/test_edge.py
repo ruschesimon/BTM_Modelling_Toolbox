@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 import pandas as pd
 from pandas.testing import assert_series_equal
@@ -35,7 +36,7 @@ class EdgeCostTests(unittest.TestCase):
 
     def test_invalid_system_or_index(self):
         for system in [object(), EnergySystem(time_index=None),
-                       EnergySystem(time_index=pd.Index([0, 1]))]:
+                       Mock(spec=EnergySystem, time_index=pd.Index([0, 1]))]:
             edge = Edge(**self.ports(), energy_system=system)
             with self.assertRaises(TypeError):
                 _ = edge.variable_cost

@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 import pandas as pd
 from pandas.testing import assert_series_equal
@@ -44,7 +45,7 @@ class SinkTests(unittest.TestCase):
                     assert_series_equal(getattr(sink, name), expected)
 
     def test_invalid_system_and_index(self):
-        for system in [object(), EnergySystem(time_index=pd.Index([0, 1])),
+        for system in [object(), Mock(spec=EnergySystem, time_index=pd.Index([0, 1])),
                        EnergySystem(time_index=None)]:
             sink = self.sink(energy_system=system)
             for name in ('min_capacity', 'max_capacity'):

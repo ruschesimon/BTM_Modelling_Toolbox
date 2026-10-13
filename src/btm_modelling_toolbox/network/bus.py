@@ -7,7 +7,7 @@ from dataclasses import dataclass
 # -------------------- Local Imports --------------------
 
 from ..core.carrier import Carrier
-from ..core.port import FlowDirection, Port
+from ..core.port import PortDirection, Port
 from ..core.vertex import Vertex
 
 
@@ -29,7 +29,7 @@ class Bus(Vertex):
     carrier: Carrier
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        Vertex.__post_init__(self)
 
         self._validate_carrier()
         self._create_ports()
@@ -42,18 +42,18 @@ class Bus(Vertex):
 
 
     def _create_ports(self) -> None:
-        self.add_ports(
+        self.add_ports((
             Port(
                 label=f"{self.label}_{self.carrier.label}_input",
                 vertex=self,
                 carrier=self.carrier,
-                direction=FlowDirection.INPUT,
+                direction=PortDirection.INPUT,
             ),
             Port(
                 label=f"{self.label}_{self.carrier.label}_output",
                 vertex=self,
                 carrier=self.carrier,
-                direction=FlowDirection.OUTPUT,
+                direction=PortDirection.OUTPUT,
             ),
 
-        )
+        ))

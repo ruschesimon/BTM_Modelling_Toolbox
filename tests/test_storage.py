@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 import numpy as np
 import pandas as pd
@@ -80,7 +81,7 @@ class StorageTests(unittest.TestCase):
         for name in self.parameter_names:
             with self.assertRaises(RuntimeError):
                 getattr(storage, name)
-        for system in [object(), EnergySystem(time_index=pd.Index([0, 1]))]:
+        for system in [object(), Mock(spec=EnergySystem, time_index=pd.Index([0, 1]))]:
             storage._set_energy_system(system)
             for name in self.parameter_names:
                 with self.assertRaises(TypeError):

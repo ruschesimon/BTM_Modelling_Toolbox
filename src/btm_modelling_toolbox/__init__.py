@@ -15,6 +15,7 @@ from .components.sink import Sink
 from .components.source import Source
 from .components.storage import Storage
 from .network.system import EnergySystem
+from .network.bus import Bus
 
 '''
 from .components.component import Component
