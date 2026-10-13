@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 from abc import ABC
-from dataclasses import dataclass
-from uuid import UUID
+from dataclasses import dataclass, field
+
+import pandas as pd
 
 
 # -------------------- Local Imports --------------------
 
-from ..core.entity import Entity
-from ..core.port import Port
 from ..core.vertex import Vertex
+from ..network.system import EnergySystem
 from ..utils.numeric import normalize_numeric_input, build_time_series, ScalarValue, NumericValue
 
 # -------------------- Class Definition --------------------
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, init=False)
 class Component(Vertex, ABC):
     """
     Abstrakte Basisklasse für Komponenten eines Energiesystems.
@@ -24,8 +24,29 @@ class Component(Vertex, ABC):
     mit anderen Komponenten verbunden werden kann.
     """
 
-    variable_cost: NumericValue = 0.0
+    _variable_cost: NumericValue = field(init=False, repr=False)
     fixed_cost: ScalarValue = 0.0
+
+    def __init__(
+        self,
+        *,
+        variable_cost: NumericValue = 0.0,
+        fixed_cost: ScalarValue = 0.0,
+        label: str | None = None,
+    ) -> None:
+        self._variable_cost = variable_cost
+        self.fixed_cost = fixed_cost
+        super().__init__(label=label)
+
+    @property
+    def variable_cost(self) -> pd.Series:
+        """Return costs on the assigned energy system's RangeIndex.
+
+        Scalar inputs are broadcast; Series are aligned by index label.
+        Negative costs are allowed. Access without a system raises
+        RuntimeError; invalid system/index types raise TypeError.
+        """
+        return self._parameter_series(self._variable_cost, "variable_cost")
 
 
     def __post_init__(self) -> None:
@@ -35,8 +56,8 @@ class Component(Vertex, ABC):
 
 
     def _normalize_costs(self) -> None:
-        self.variable_cost = normalize_numeric_input(
-            self.variable_cost,
+        self._variable_cost = normalize_numeric_input(
+            self._variable_cost,
             name="variable_cost",
         )
 
@@ -54,13 +75,3 @@ class Component(Vertex, ABC):
         if not isinstance(system.time_index, pd.RangeIndex):
             raise TypeError("energy_system.time_index must be a pandas RangeIndex.")
         return build_time_series(value, name, system.time_index)
-
-    '''
-    def get_variableCost(self, timeIndex):
-        timeSeries = build_time_series(self.variable_cost, "variable_cost", timeIndex)
-        return timeSeries
-
-    
-    def get_fixedCost(self):
-        return self.fixed_cost
-    '''

@@ -66,7 +66,7 @@ class Vertex(Entity, ABC):
         return tuple(
             port
             for port in self._ports.values()
-            if port.direction.allows_input
+            if port.is_input
         )
 
     @property
@@ -74,7 +74,7 @@ class Vertex(Entity, ABC):
         return tuple(
             port
             for port in self._ports.values()
-            if port.direction.allows_output
+            if port.is_output
         )
 
     def add_port(

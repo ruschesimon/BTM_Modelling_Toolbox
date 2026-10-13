@@ -119,7 +119,8 @@ class StorageTests(unittest.TestCase):
         outgoing = Edge(source_port=discharge, sink_port=next(iter(sink.ports.values())))
         self.assertIs(incoming.sink_vertex, storage)
         self.assertIs(outgoing.source_vertex, storage)
-        self.assertEqual(storage.variable_cost, 2)
+        storage._set_energy_system(EnergySystem(time_index=pd.RangeIndex(3)))
+        self.assertEqual(storage.variable_cost.tolist(), [2.] * 3)
         self.assertEqual(storage.fixed_cost, 3)
         with self.assertRaises(TypeError):
             self.storage(carrier=object())

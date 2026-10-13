@@ -4,11 +4,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import pandas as pd
+
 
 # -------------------- Local Imports --------------------
 
 from .entity import Entity
 from .port import Port
+from ..network.system import EnergySystem
+from ..utils.numeric import NumericValue, build_time_series, normalize_numeric_input
 
 
 # -------------------- Type Checking Imports --------------------
@@ -20,13 +24,50 @@ if TYPE_CHECKING:
 
 # -------------------- Class Definition --------------------
 
-@dataclass(slots=True, kw_only=True)
+@dataclass(slots=True, kw_only=True, init=False)
 class Edge(Entity):
+    """Connect two ports with scalar or time-dependent variable costs.
+
+    Costs default to zero and may be negative. Reading variable_cost requires
+    an explicitly assigned EnergySystem with a pandas RangeIndex. Series
+    inputs are aligned by index label; missing/duplicate labels raise errors.
+    """
+
     source_port: Port
     sink_port: Port
+    energy_system: EnergySystem | None = field(default=None, repr=False)
+    _variable_cost: NumericValue = field(init=False, repr=False)
+
+    def __init__(
+        self,
+        *,
+        source_port: Port,
+        sink_port: Port,
+        variable_cost: NumericValue = 0.0,
+        energy_system: EnergySystem | None = None,
+        label: str | None = None,
+    ) -> None:
+        self.source_port = source_port
+        self.sink_port = sink_port
+        self.energy_system = energy_system
+        self._variable_cost = normalize_numeric_input(
+            variable_cost, name="variable_cost",
+        )
+        Entity.__init__(self, label=label)
+
+    @property
+    def variable_cost(self) -> pd.Series:
+        system = self.energy_system
+        if system is None:
+            raise RuntimeError("Edge is not assigned to an EnergySystem.")
+        if not isinstance(system, EnergySystem):
+            raise TypeError("energy_system must be an instance of EnergySystem.")
+        if not isinstance(system.time_index, pd.RangeIndex):
+            raise TypeError("energy_system.time_index must be a pandas RangeIndex.")
+        return build_time_series(self._variable_cost, "variable_cost", system.time_index)
 
     def __post_init__(self) -> None:
-        Entity().__post_init__()
+        Entity.__post_init__(self)
 
         self._validate_ports()
         self._connect_ports()
