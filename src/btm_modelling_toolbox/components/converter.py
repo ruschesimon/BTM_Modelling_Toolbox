@@ -6,6 +6,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from numbers import Real
 from types import MappingProxyType
+from typing import ClassVar
 from uuid import UUID
 
 import numpy as np
@@ -26,7 +27,9 @@ class Converter(Component):
     """Convert between one or more input and output carriers.
 
     Each carrier gets a directional port. Conversion factors multiply a
-    common activity variable: input/output flow = factor * activity. Factors
+    common activity variable: flow = offset * operating + factor * activity.
+    Offsets default to zero; operating is 1 while running and 0 while off.
+    The caller/solver must supply the operating state. Factors
     are finite and nonnegative (zero is allowed); they need not be <= 1.
     This class declares parameters, without constructing balance equations.
 
@@ -38,6 +41,12 @@ class Converter(Component):
     different carrier instances may have the same label.
     """
 
+    # Affine specializations may need signed slopes while keeping their
+    # physical flows nonnegative over a restricted operating interval.
+    _allow_signed_conversion: ClassVar[bool] = False
+
+    _input_offset: dict[UUID, NormalizedNumeric] = field(init=False, repr=False)
+    _output_offset: dict[UUID, NormalizedNumeric] = field(init=False, repr=False)
     _input_carriers: tuple[Carrier, ...] = field(init=False, repr=False)
     _output_carriers: tuple[Carrier, ...] = field(init=False, repr=False)
     _input_conversion: dict[UUID, NormalizedNumeric] = field(init=False, repr=False)
@@ -54,6 +63,8 @@ class Converter(Component):
         output_carriers: Carrier | Iterable[Carrier],
         input_conversion: CarrierParameter,
         output_conversion: CarrierParameter,
+        input_offset: CarrierParameter | None = None,
+        output_offset: CarrierParameter | None = None,
         input_min: CarrierParameter | None = None,
         input_max: CarrierParameter | None = None,
         output_min: CarrierParameter | None = None,
@@ -78,7 +89,10 @@ class Converter(Component):
                 name = f'{side}_{suffix}'
                 if value is None and default is not None:
                     value = {c.id: default for c in carriers}
-                normalized = self._normalize_parameters(value, carriers, name)
+                normalized = self._normalize_parameters(
+                    value, carriers, name,
+                    allow_negative=suffix == "conversion" and self._allow_signed_conversion,
+                )
                 if suffix == 'conversion' and any(
                     not np.isfinite(v).all() for v in normalized.values()
                 ):
@@ -86,6 +100,19 @@ class Converter(Component):
                 setattr(self, f'_{name}', normalized)
             self._validate_bounds(getattr(self, f'_{side}_min'),
                                   getattr(self, f'_{side}_max'), side)
+        for side, carriers, offset in (("input", self.inputs, input_offset),
+                                       ("output", self.outputs, output_offset)):
+            if offset is None:
+                offset = {c.id: 0. for c in carriers}
+            values = self._normalize_parameters(offset, carriers, f"{side}_offset", allow_negative=True)
+            if any(not np.isfinite(v).all() for v in values.values()):
+                raise ValueError(f"{side}_offset must contain only finite values.")
+            for key, value in values.items():
+                factor = getattr(self, f"_{side}_conversion")[key]
+                if isinstance(value, pd.Series) and isinstance(factor, pd.Series):
+                    if not value.index.equals(factor.index):
+                        raise ValueError("Conversion factors and offsets must have identical indices.")
+            setattr(self, f"_{side}_offset", values)
         super().__init__(label=label, variable_cost=variable_cost, fixed_cost=fixed_cost)
         if energy_system is not None:
             self._set_energy_system(energy_system)
@@ -121,7 +148,7 @@ class Converter(Component):
         return carriers
 
     @staticmethod
-    def _normalize_parameters(value, carriers, name) -> dict[UUID, NormalizedNumeric]:
+    def _normalize_parameters(value, carriers, name, *, allow_negative=False) -> dict[UUID, NormalizedNumeric]:
         if isinstance(value, Mapping):
             if set(value) != {c.id for c in carriers}:
                 raise ValueError(f'{name} must have exactly the selected carrier.id keys.')
@@ -130,7 +157,7 @@ class Converter(Component):
                 raise TypeError(f'{name} must be a carrier.id mapping for multiple carriers.')
             value = {carriers[0].id: value}
         return {
-            c.id: normalize_numeric_input(value[c.id], name=f'{name}[{c.id}]', allow_negative=False)
+            c.id: normalize_numeric_input(value[c.id], name=f'{name}[{c.id}]', allow_negative=allow_negative)
             for c in carriers
         }
 
@@ -189,3 +216,11 @@ class Converter(Component):
     @property
     def output_max(self) -> Mapping[UUID, pd.Series]:
         return self._parameter_mapping(self._output_max, 'output_max')
+
+    @property
+    def input_offset(self) -> Mapping[UUID, pd.Series]:
+        return self._parameter_mapping(self._input_offset, 'input_offset')
+
+    @property
+    def output_offset(self) -> Mapping[UUID, pd.Series]:
+        return self._parameter_mapping(self._output_offset, 'output_offset')

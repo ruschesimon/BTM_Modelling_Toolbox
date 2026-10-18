@@ -11,6 +11,7 @@ from .core.port import Port, PortDirection
 from .core.vertex import Vertex
 
 from .components.converter import Converter
+from .components.converters import CombinedHeatPower, HeatBoiler, HeatPump
 from .components.sink import Sink
 from .components.source import Source
 from .components.storage import Storage
@@ -38,6 +39,9 @@ __all__ = [
     "Vertex",
     "Component",
     "Converter",
+    "CombinedHeatPower",
+    "HeatBoiler",
+    "HeatPump",
     "Sink",
     "Source",
     "Storage",

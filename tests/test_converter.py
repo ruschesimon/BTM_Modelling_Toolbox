@@ -113,5 +113,28 @@ class ConverterTests(unittest.TestCase):
                 _ = converter.input_conversion
 
 
+    def test_affine_offsets_are_additive_and_default_to_zero(self):
+        converter = self.converter()
+        self.assertEqual(converter.input_offset[self.a.id].tolist(), [0.] * 3)
+        self.assertEqual(converter.output_offset[self.b.id].tolist(), [0.] * 3)
+        converter = self.converter(input_offset=pd.Series([1., 2., 3.]), output_offset=-1.)
+        self.assertEqual(converter.input_offset[self.a.id].tolist(), [1., 2., 3.])
+        self.assertEqual(converter.output_offset[self.b.id].tolist(), [-1.] * 3)
+        with self.assertRaises(TypeError):
+            converter.input_offset[self.a.id] = pd.Series([0.])
+
+    def test_invalid_offsets_and_alignment(self):
+        for side in ('input', 'output'):
+            for value in [float('inf'), float('nan'), True, {self.c.id: 1.}]:
+                with self.assertRaises((ValueError, TypeError)):
+                    self.converter(**{f'{side}_offset': value})
+        with self.assertRaises(ValueError):
+            self.converter(input_conversion=pd.Series([1], index=[0]),
+                           input_offset=pd.Series([1], index=[1]))
+        with self.assertRaises(TypeError):
+            self.converter(input_carriers=[self.a, self.c],
+                           input_conversion={self.a.id: 1., self.c.id: 1.}, input_offset=2.)
+
+
 if __name__ == '__main__':
     unittest.main()
