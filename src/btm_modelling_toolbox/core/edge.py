@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 
@@ -31,12 +32,17 @@ class Edge(Entity):
     Costs default to zero and may be negative. Reading variable_cost requires
     an explicitly assigned EnergySystem with a pandas RangeIndex. Series
     inputs are aligned by index label; missing/duplicate labels raise errors.
+    Capacity is a nonnegative sending-end limit (default infinity). Efficiency
+    is a scalar or Series in [0, 1] (default 1). Received flow equals sending
+    flow times efficiency; losses are proportional, with no fixed offset.
     """
 
     source_port: Port
     sink_port: Port
     energy_system: EnergySystem | None = field(default=None, repr=False)
     _variable_cost: NumericValue = field(init=False, repr=False)
+    _capacity: NumericValue = field(init=False, repr=False)
+    _efficiency: NumericValue = field(init=False, repr=False)
 
     def __init__(
         self,
@@ -44,6 +50,8 @@ class Edge(Entity):
         source_port: Port,
         sink_port: Port,
         variable_cost: NumericValue = 0.0,
+        capacity: NumericValue = float("inf"),
+        efficiency: NumericValue = 1.0,
         energy_system: EnergySystem | None = None,
         label: str | None = None,
     ) -> None:
@@ -53,11 +61,51 @@ class Edge(Entity):
         self._variable_cost = normalize_numeric_input(
             variable_cost, name="variable_cost",
         )
+        self._capacity = normalize_numeric_input(
+            capacity, name="capacity", allow_negative=False,
+        )
+        self._efficiency = normalize_numeric_input(
+            efficiency, name="efficiency", allow_negative=False,
+        )
+        if np.any(self._efficiency > 1):
+            raise ValueError("efficiency must be between zero and one.")
         Entity.__init__(self, label=label)
 
     @property
     def variable_cost(self) -> pd.Series:
         return self._parameter_series(self._variable_cost, "variable_cost")
+
+    @property
+    def capacity(self) -> pd.Series:
+        """Maximum sending-end flow; defaults to an unlimited capacity."""
+        return self._parameter_series(self._capacity, "capacity")
+
+    @property
+    def efficiency(self) -> pd.Series:
+        """Received/sent flow ratio in [0, 1]; defaults to lossless transfer."""
+        return self._parameter_series(self._efficiency, "efficiency")
+
+    def _sending_flow(self, flow: NumericValue) -> pd.Series:
+        value = normalize_numeric_input(flow, name="flow", allow_negative=False)
+        if not np.isfinite(value).all():
+            raise ValueError("flow must contain only finite values.")
+        series = self._parameter_series(value, "flow")
+        if (series > self.capacity).any():
+            raise ValueError("Sending-end flow must not exceed capacity.")
+        return series
+
+    def compute_received_flow(self, flow: NumericValue) -> pd.Series:
+        """Apply linear losses: received_flow[t] = efficiency[t] * flow[t].
+
+        flow is the nonnegative sending-end flow, in the same units as
+        capacity. Values exceeding capacity are rejected. This evaluates
+        supplied flows; no optimization constraints are generated.
+        """
+        return (self._sending_flow(flow) * self.efficiency).rename("received_flow")
+
+    def compute_losses(self, flow: NumericValue) -> pd.Series:
+        """Return lost flow: (1 - efficiency[t]) * sending-end flow[t]."""
+        return (self._sending_flow(flow) * (1 - self.efficiency)).rename("losses")
 
     def __post_init__(self) -> None:
         Entity.__post_init__(self)

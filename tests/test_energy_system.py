@@ -136,7 +136,7 @@ class EnergySystemTests(unittest.TestCase):
         system.set_temporal_context(start, start + timedelta(hours=2), timedelta(minutes=30))
         self.assertEqual(len(system.time_index), 4)
         self.assertEqual(system.time_index[0], int(start.timestamp()))
-        self.assertEqual(system.time_increment, 1800)
+        self.assertEqual(system.time_increment, timedelta(minutes=30))
         self.assertEqual(system.tau, 0.5)
         naive = EnergySystem()
         naive.set_temporal_context(start.replace(tzinfo=None),
@@ -146,7 +146,7 @@ class EnergySystemTests(unittest.TestCase):
 
     def test_invalid_time_context_is_atomic(self):
         start = datetime(2026, 1, 1)
-        self.system.time_increment = 3600
+        self.system.time_increment = timedelta(hours=1)
         old_index = self.system.time_index
         for args, error in [((None, start, timedelta(hours=1)), TypeError),
                             ((start, start, timedelta(hours=1)), ValueError),
@@ -156,17 +156,18 @@ class EnergySystemTests(unittest.TestCase):
             with self.assertRaises(error):
                 self.system.set_temporal_context(*args)
             self.assertIs(self.system.time_index, old_index)
-            self.assertEqual(self.system.time_increment, 3600)
+            self.assertEqual(self.system.time_increment, timedelta(hours=1))
         for index in [pd.RangeIndex(0), pd.RangeIndex(3, 0, -1)]:
             with self.assertRaises(ValueError):
                 EnergySystem(time_index=index)
         with self.assertRaises(TypeError):
             EnergySystem(time_index=pd.Index([0, 1]))
-        for value in [0, -1, float('inf'), float('nan')]:
+        for value in [timedelta(0), timedelta(seconds=-1)]:
             with self.assertRaises(ValueError):
                 EnergySystem(time_increment=value)
-        with self.assertRaises(TypeError):
-            EnergySystem(time_increment=True)
+        for value in [0, -1, float('inf'), float('nan'), True]:
+            with self.assertRaises(TypeError):
+                EnergySystem(time_increment=value)
 
     def test_graph_export(self):
         try:
