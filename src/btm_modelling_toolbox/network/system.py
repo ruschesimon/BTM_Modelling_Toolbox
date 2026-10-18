@@ -40,7 +40,7 @@ class EnergySystem(Entity):
     _vertices: dict[UUID, Vertex] = field(default_factory=dict, init=False, repr=False)
     _edges: dict[UUID, Edge] = field(default_factory=dict, init=False, repr=False)
     _time_index: pd.RangeIndex | None = field(default=None, init=False, repr=False)
-    _time_increment: _time_increment: timedelta | None = field(default=None, init=False, repr=False)
+    _time_increment: timedelta | None = field(default=None, init=False, repr=False)
 
     def __init__(self, *, label: str | None = None,
                  time_index: pd.RangeIndex | None = None,
@@ -83,6 +83,16 @@ class EnergySystem(Entity):
         if self.time_increment is None:
             raise RuntimeError('time_increment is not configured.')
         return self.time_increment / timedelta(hours=1)
+
+    @tau.setter
+    def tau(self, value: float | None) -> None:
+        if value is not None:
+            if isinstance(value, (bool, np.bool_)) or not isinstance(value, timedelta):
+                raise TypeError('tau must be a float or None.')
+            if not np.isfinite(value) or value <= 0.0:
+                raise ValueError('tau must be finite and greater than zero.')
+        self._time_increment = timedelta(hours=1) * value
+
 
     def set_temporal_context(self, start: datetime, end: datetime, step: timedelta) -> None:
         if not isinstance(start, datetime) or not isinstance(end, datetime):
