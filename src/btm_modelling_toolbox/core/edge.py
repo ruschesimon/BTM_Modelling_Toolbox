@@ -85,28 +85,6 @@ class Edge(Entity):
         """Received/sent flow ratio in [0, 1]; defaults to lossless transfer."""
         return self._parameter_series(self._efficiency, "efficiency")
 
-    def _sending_flow(self, flow: NumericValue) -> pd.Series:
-        value = normalize_numeric_input(flow, name="flow", allow_negative=False)
-        if not np.isfinite(value).all():
-            raise ValueError("flow must contain only finite values.")
-        series = self._parameter_series(value, "flow")
-        if (series > self.capacity).any():
-            raise ValueError("Sending-end flow must not exceed capacity.")
-        return series
-
-    def compute_received_flow(self, flow: NumericValue) -> pd.Series:
-        """Apply linear losses: received_flow[t] = efficiency[t] * flow[t].
-
-        flow is the nonnegative sending-end flow, in the same units as
-        capacity. Values exceeding capacity are rejected. This evaluates
-        supplied flows; no optimization constraints are generated.
-        """
-        return (self._sending_flow(flow) * self.efficiency).rename("received_flow")
-
-    def compute_losses(self, flow: NumericValue) -> pd.Series:
-        """Return lost flow: (1 - efficiency[t]) * sending-end flow[t]."""
-        return (self._sending_flow(flow) * (1 - self.efficiency)).rename("losses")
-
     def __post_init__(self) -> None:
         Entity.__post_init__(self)
 
