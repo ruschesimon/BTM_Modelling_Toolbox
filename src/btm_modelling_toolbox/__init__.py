@@ -7,6 +7,7 @@ The package provides graph-based modeling of multi-carrier energy systems.
 from .core.carrier import Carrier, Electricity
 from .core.edge import Edge, BidirectionalEdge
 from .core.entity import Entity
+from .core.dependency import Dependency, MutuallyExclusiveFlowDependency, LinearFlowDependency
 from .core.port import Port, PortDirection
 from .core.vertex import Vertex
 
@@ -34,6 +35,9 @@ __all__ = [
     "Edge",
     "BidirectionalEdge",
     "Entity",
+    "Dependency",
+    "MutuallyExclusiveFlowDependency",
+    "LinearFlowDependency",
     "Port",
     "PortDirection",
     "Vertex",

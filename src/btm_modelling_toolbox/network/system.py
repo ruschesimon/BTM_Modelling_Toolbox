@@ -18,6 +18,7 @@ from ..core.entity import Entity
 if TYPE_CHECKING:
     from ..components.component import Component
     from ..core.edge import Edge, BidirectionalEdge
+    from ..core.dependency import Dependency
     from ..core.vertex import Vertex
     from .bus import Bus
 
@@ -30,6 +31,8 @@ class EnergySystem(Entity):
     constructor-time assignment to this system is accepted on registration.
     Batch additions validate every object before changing membership. Removing
     an edge disconnects its ports. Removing connected vertices requires cascade.
+    Dependencies are registered after their edges and block deletion of those
+    edges, including vertex cascades, until explicitly unregistered.
 
     time_index is a nonempty increasing RangeIndex, or None until configured.
     time_increment is the duration of one step in seconds, independent of the
@@ -39,6 +42,7 @@ class EnergySystem(Entity):
 
     _vertices: dict[UUID, Vertex] = field(default_factory=dict, init=False, repr=False)
     _edges: dict[UUID, Edge] = field(default_factory=dict, init=False, repr=False)
+    _dependencies: dict[UUID, Dependency] = field(default_factory=dict, init=False, repr=False)
     _time_index: pd.RangeIndex | None = field(default=None, init=False, repr=False)
     _time_increment: timedelta | None = field(default=None, init=False, repr=False)
 
@@ -47,6 +51,7 @@ class EnergySystem(Entity):
                  time_increment: timedelta | None = None) -> None:
         self._vertices = {}
         self._edges = {}
+        self._dependencies = {}
         self.time_index = time_index
         self.time_increment = time_increment
         Entity.__init__(self, label=label)
@@ -139,12 +144,14 @@ class EnergySystem(Entity):
         if not isinstance(value, UUID):
             raise TypeError('Element ID must be a UUID.')
 
-    def get_element(self, element_id: UUID) -> Vertex | Edge:
+    def get_element(self, element_id: UUID) -> Vertex | Edge | Dependency:
         self._require_uuid(element_id)
         if element_id in self._vertices:
             return self._vertices[element_id]
         if element_id in self._edges:
             return self._edges[element_id]
+        if element_id in self._dependencies:
+            return self._dependencies[element_id]
         raise KeyError(f'Element {element_id} is not registered in this EnergySystem.')
 
     def get_vertex(self, vertex_id: UUID) -> Vertex:
@@ -161,7 +168,7 @@ class EnergySystem(Entity):
     def add_vertices(self, vertices: Iterable[Vertex]) -> None:
         from ..core.vertex import Vertex
         vertices = tuple(vertices)
-        seen = set(self._vertices) | set(self._edges)
+        seen = set(self._vertices) | set(self._edges) | set(self._dependencies)
         for vertex in vertices:
             if not isinstance(vertex, Vertex):
                 raise TypeError('vertices must contain Vertex instances.')
@@ -191,7 +198,7 @@ class EnergySystem(Entity):
                 directed.append(edge)
             else:
                 raise TypeError('edges must contain Edge or BidirectionalEdge instances.')
-        seen = set(self._vertices) | set(self._edges)
+        seen = set(self._vertices) | set(self._edges) | set(self._dependencies)
         for edge in directed:
             if edge.id in seen:
                 raise ValueError(f'Duplicate element ID: {edge.id}.')
@@ -214,8 +221,65 @@ class EnergySystem(Entity):
             edge.energy_system = self
             self._edges[edge.id] = edge
 
+    @property
+    def dependencies(self) -> Mapping[UUID, Dependency]:
+        """Read-only live view of the registered dependencies."""
+        return MappingProxyType(self._dependencies)
+
+    def get_dependency(self, dependency_id: UUID) -> Dependency:
+        self._require_uuid(dependency_id)
+        return self._dependencies[dependency_id]
+
+    def add_dependency(self, dependency: Dependency) -> None:
+        self.add_dependencies((dependency,))
+
+    def add_dependencies(self, dependencies: Iterable[Dependency]) -> None:
+        """Register dependencies atomically, after all referenced edges.
+
+        Missing/foreign references, duplicate IDs and foreign ownership are
+        rejected before any system membership is changed.
+        """
+        from ..core.dependency import Dependency
+        dependencies = tuple(dependencies)
+        seen = set(self._vertices) | set(self._edges) | set(self._dependencies)
+        for dependency in dependencies:
+            if not isinstance(dependency, Dependency):
+                raise TypeError('dependencies must contain Dependency instances.')
+            if dependency.id in seen:
+                raise ValueError(f'Duplicate element ID: {dependency.id}.')
+            seen.add(dependency.id)
+            if dependency.has_energy_system and dependency.energy_system is not self:
+                raise ValueError('Dependency belongs to another energy system.')
+            if not dependency.check_system_compatibility(self):
+                raise ValueError('All referenced edges must be registered in this EnergySystem.')
+        for dependency in dependencies:
+            if not dependency.has_energy_system:
+                dependency._set_energy_system(self)
+            self._dependencies[dependency.id] = dependency
+
+    def remove_dependency(self, dependency_id: UUID) -> Dependency:
+        """Unregister a dependency without removing any referenced graph objects."""
+        dependency = self.get_dependency(dependency_id)
+        if not dependency.has_energy_system or dependency.energy_system is not self:
+            raise ValueError('Dependency ownership has been modified externally.')
+        del self._dependencies[dependency_id]
+        dependency._remove_energy_system()
+        return dependency
+
+    def _check_edge_dependencies(self, edge: Edge) -> None:
+        references = [dependency for dependency in self._dependencies.values()
+                      if any(reference is edge or reference.id == edge.id
+                             for reference in dependency.referenced_edges)]
+        if references:
+            labels = ', '.join(f'{dep.label!r} ({dep.id})' for dep in references)
+            raise ValueError(
+                f'Edge {edge.label!r} is referenced by dependencies: {labels}. '
+                'Remove those dependencies explicitly before deleting the edge.'
+            )
+
     def remove_edge(self, edge_id: UUID) -> Edge:
         edge = self.get_edge(edge_id)
+        self._check_edge_dependencies(edge)
         if edge.energy_system is not self:
             raise ValueError("Edge ownership has been modified externally.")
         for port in (edge.source_port, edge.sink_port):
@@ -241,6 +305,9 @@ class EnergySystem(Entity):
                 raise ValueError("Edge ownership has been modified externally.")
             if edge.source_port.edge is not edge or edge.sink_port.edge is not edge:
                 raise ValueError('Edge port connection has been modified externally.')
+        # Check every dependency before removing even the first connected edge.
+        for edge in connected:
+            self._check_edge_dependencies(edge)
         for edge in connected:
             self.remove_edge(edge.id)
         del self._vertices[vertex_id]
