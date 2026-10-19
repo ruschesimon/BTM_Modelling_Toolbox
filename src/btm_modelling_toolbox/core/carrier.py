@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Hashable
 from enum import Enum
+from math import isfinite
+from numbers import Real
 
 
 # -------------------- Local Imports --------------------
@@ -23,6 +25,9 @@ class CarrierCategory(str, Enum):
 class CurrentType(str, Enum):
     ALTERNATING_CURRENT = "alternating_current"
     DIRECT_CURRENT = "direct_current"
+
+    AC = ALTERNATING_CURRENT
+    DC = DIRECT_CURRENT
 
 
 # -------------------- Class Definition --------------------
@@ -87,6 +92,15 @@ class Carrier(Entity, ABC):
 
 @dataclass(slots=True, kw_only=True)
 class Electricity(Carrier):
+    """Electrical carrier characterized by current type and nominal voltage.
+
+    current_type defaults to AC. voltage_level is a positive finite scalar in
+    volts, or None for an unspecified voltage. Compatibility requires identical
+    current types and voltages, independent of UUID/label. None matches only
+    None; it is not a wildcard for a known voltage. Direction remains a Port
+    characteristic. Voltage conversion or AC/DC conversion requires a Converter.
+    """
+
     current_type: CurrentType = CurrentType.ALTERNATING_CURRENT
     voltage_level: float | None = None
 
@@ -96,13 +110,12 @@ class Electricity(Carrier):
                 "current_type must be an instance of CurrentType."
             )
 
-        if (
-            self.voltage_level is not None
-            and self.voltage_level <= 0
-        ):
-            raise ValueError(
-                "voltage_level must be greater than zero."
-            )
+        if self.voltage_level is not None:
+            if isinstance(self.voltage_level, bool) or not isinstance(self.voltage_level, Real):
+                raise TypeError("voltage_level must be a real scalar in volts or None.")
+            if not isfinite(self.voltage_level) or self.voltage_level <= 0:
+                raise ValueError("voltage_level must be finite and greater than zero.")
+            self.voltage_level = float(self.voltage_level)
 
     @property
     def label(self) -> str:

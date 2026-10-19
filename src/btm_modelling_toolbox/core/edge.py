@@ -108,9 +108,9 @@ class Edge(Entity):
                 f"Sink port {self.sink_port.label!r} must be an input port."
             )
 
-        if self.source_port.carrier != self.sink_port.carrier:
+        if not self.source_port.carrier.is_compatible_with(self.sink_port.carrier):
             raise ValueError(
-                "Source and sink port must use the same carrier."
+                "Source and sink port must use compatible carriers."
             )
 
         if self.source_port.is_connected:
@@ -213,19 +213,19 @@ class BidirectionalEdge(Entity):
                 "must belong to the same vertex."
             )
 
-        if self.forward_source_port.carrier != self.backward_sink_port.carrier:
+        if not self.forward_source_port.carrier.is_compatible_with(self.backward_sink_port.carrier):
             raise ValueError(
-                "Ports of the first vertex must use the same carrier."
+                "Ports of the first vertex must use compatible carriers."
             )
 
-        if self.forward_sink_port.carrier != self.backward_source_port.carrier:
+        if not self.forward_sink_port.carrier.is_compatible_with(self.backward_source_port.carrier):
             raise ValueError(
-                "Ports of the second vertex must use the same carrier."
+                "Ports of the second vertex must use compatible carriers."
             )
 
-        if self.forward_source_port.carrier != self.forward_sink_port.carrier:
+        if not self.forward_source_port.carrier.is_compatible_with(self.forward_sink_port.carrier):
             raise ValueError(
-                "All ports of a bidirectional edge must use the same carrier."
+                "All ports of a bidirectional edge must use compatible carriers."
             )
 
     @property

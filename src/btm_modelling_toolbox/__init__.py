@@ -4,7 +4,7 @@ Top-level package for package_name.
 The package provides graph-based modeling of multi-carrier energy systems.
 """
 
-from .core.carrier import Carrier, Electricity
+from .core.carrier import Carrier, Electricity, CurrentType
 from .core.edge import Edge, BidirectionalEdge
 from .core.entity import Entity
 from .core.dependency import Dependency, MutuallyExclusiveFlowDependency, LinearFlowDependency
@@ -32,6 +32,7 @@ from .network.system import EnergySystem
 __all__ = [
     "Carrier",
     "Electricity",
+    "CurrentType",
     "Edge",
     "BidirectionalEdge",
     "Entity",

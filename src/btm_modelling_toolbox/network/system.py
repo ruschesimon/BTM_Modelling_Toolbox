@@ -215,7 +215,7 @@ class EnergySystem(Entity):
                     raise ValueError('Edge must use registered, connected ports.')
             if (not edge.source_port.is_output or not edge.sink_port.is_input
                     or edge.source_vertex is edge.sink_vertex
-                    or edge.source_port.carrier != edge.sink_port.carrier):
+                    or not edge.source_port.carrier.is_compatible_with(edge.sink_port.carrier)):
                 raise ValueError('Invalid edge direction, endpoints, or carriers.')
         for edge in directed:
             edge.energy_system = self
