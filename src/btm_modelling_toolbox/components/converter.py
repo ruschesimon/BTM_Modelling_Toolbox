@@ -37,13 +37,15 @@ class Converter(Component):
     multiple carriers, provide a complete mapping keyed by carrier.id (UUID).
     Parameter properties return read-only UUID-to-Series mappings, aligned
     to energy_system.time_index through Component._parameter_series.
-    Bounds default to zero/infinity. A carrier cannot appear on both sides;
-    different carrier instances may have the same label.
+    Bounds default to zero/infinity. Generic converters require disjoint
+    input/output carrier IDs; directional specializations may explicitly allow
+    shared IDs. Different carrier instances may have the same label.
     """
 
     # Affine specializations may need signed slopes while keeping their
     # physical flows nonnegative over a restricted operating interval.
     _allow_signed_conversion: ClassVar[bool] = False
+    _allow_shared_carriers: ClassVar[bool] = False
 
     _input_offset: dict[UUID, NormalizedNumeric] = field(init=False, repr=False)
     _output_offset: dict[UUID, NormalizedNumeric] = field(init=False, repr=False)
@@ -76,7 +78,7 @@ class Converter(Component):
     ) -> None:
         self._input_carriers = self._normalize_carriers(input_carriers, 'input_carriers')
         self._output_carriers = self._normalize_carriers(output_carriers, 'output_carriers')
-        if {c.id for c in self.inputs} & {c.id for c in self.outputs}:
+        if not self._allow_shared_carriers and {c.id for c in self.inputs} & {c.id for c in self.outputs}:
             raise ValueError('Input and output carriers must be disjoint.')
         for side, carriers, conversion, minimum, maximum in (
             ('input', self.inputs, input_conversion, input_min, input_max),

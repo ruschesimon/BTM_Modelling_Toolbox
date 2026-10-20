@@ -5,8 +5,8 @@
 The repository uses a `src` layout, Python >=3.11, snake_case modules and
 parameters, keyword-only constructors, and properties returning pandas Series.
 The hierarchy is `Entity -> Vertex -> Component -> Converter`. `Carrier` is an
-abstract interface; concrete `Electricity` is supplied, while heat and fuel
-currently have categories but no concrete implementations. No AGENTS.md, CI,
+abstract interface; concrete `Electricity` and `Heat` are supplied. Fuel currently has categories
+but no concrete implementation. No AGENTS.md, CI,
 formatter, type-checker configuration or additional runtime version pin was
 found. Tests use `unittest` and pandas/numpy assertions. The package is found by
 setuptools; no new external dependency is needed for these converters.
@@ -162,7 +162,10 @@ silently converted into NaN. Related Series used together in a formula must have
 identical indices. The base time-series helper aligns them to the system by label.
 
 Carrier implementations must satisfy the existing `Carrier` interface and return
-the appropriate `CarrierCategory`. No parallel Heat/Fuel hierarchy is introduced.
+the appropriate `CarrierCategory`. The built-in `Heat` characterizes a thermal
+network by `temperature_level` in Celsius and `medium`; both participate in direct
+connection compatibility. HeatPump temperature parameters remain its explicit
+operating configuration (normalized to Kelvin), independent of Carrier metadata.
 Use consistent power units for all connected carriers. Existing `variable_cost`,
 `fixed_cost`, ports and registration APIs remain inherited unchanged.
 

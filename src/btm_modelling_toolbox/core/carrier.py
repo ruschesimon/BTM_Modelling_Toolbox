@@ -135,3 +135,54 @@ class Electricity(Carrier):
             self.current_type,
             self.voltage_level,
         )
+
+# -------------------- Class Definition --------------------
+
+@dataclass(slots=True, kw_only=True)
+class Heat(Carrier):
+    """Thermal carrier characterized by temperature level and transfer medium.
+
+    temperature_level is a finite scalar in degrees Celsius, strictly above
+    absolute zero, or None when unspecified. medium is a nonempty text label
+    (e.g. 'water', 'steam', 'air'), or None. Medium labels are stripped and
+    case-folded; aliases/translations and mixture compositions are not inferred.
+
+    Compatibility requires identical temperature levels and normalized media,
+    independent of UUID/label. None matches only None, never a specified value.
+    Heat transfer/temperature changes belong to components, not direct edges.
+    The flow unit is MW of thermal power; no thermodynamic state is computed.
+    """
+
+    temperature_level: float | None = None
+    medium: str | None = None
+
+    def __post_init__(self) -> None:
+        Entity.__post_init__(self)
+        if self.temperature_level is not None:
+            if isinstance(self.temperature_level, bool) or not isinstance(self.temperature_level, Real):
+                raise TypeError('temperature_level must be a real scalar in degrees Celsius or None.')
+            if not isfinite(self.temperature_level) or self.temperature_level <= -273.15:
+                raise ValueError('temperature_level must be finite and above absolute zero (-273.15 °C).')
+            self.temperature_level = float(self.temperature_level)
+        if self.medium is not None:
+            if not isinstance(self.medium, str):
+                raise TypeError('medium must be a string or None.')
+            self.medium = self.medium.strip().casefold()
+            if not self.medium:
+                raise ValueError('medium must not be empty.')
+
+    @property
+    def label(self) -> str:
+        return 'heat'
+
+    @property
+    def category(self) -> CarrierCategory:
+        return CarrierCategory.HEAT
+
+    @property
+    def default_unit(self) -> str:
+        return 'MW'
+
+    @property
+    def compatibility_key(self) -> tuple[Hashable, ...]:
+        return self.temperature_level, self.medium

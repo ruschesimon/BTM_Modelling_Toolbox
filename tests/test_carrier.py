@@ -3,8 +3,12 @@ import unittest
 import numpy as np
 import pandas as pd
 
+from btm_modelling_toolbox.core.carrier import CarrierCategory
+from test_thermal_converters import FuelCarrier
+
 from btm_modelling_toolbox import (BidirectionalEdge, CurrentType, Edge, Electricity,
-                                   EnergySystem, Sink, Source, Storage)
+                                   EnergySystem, Sink, Source, Storage, Heat, Bus, Converter, HeatPump,
+                                   HeatBoiler, CombinedHeatPower)
 
 
 class ElectricityTests(unittest.TestCase):
@@ -96,6 +100,111 @@ class ElectricalConnectionTests(unittest.TestCase):
                               backward_sink_port=first.input_ports[0])
         for vertex in (first, second):
             self.assertTrue(all(not port.is_connected for port in vertex.ports.values()))
+
+
+class HeatTests(unittest.TestCase):
+    def test_defaults_characteristics_and_normalization(self):
+        heat = Heat()
+        self.assertIsNone(heat.temperature_level)
+        self.assertIsNone(heat.medium)
+        self.assertIs(heat.category, CarrierCategory.HEAT)
+        self.assertEqual(heat.default_unit, 'MW')
+        heat = Heat(label='Heating circuit', temperature_level=80, medium=' Water ')
+        self.assertEqual(heat.temperature_level, 80.)
+        self.assertEqual(heat.medium, 'water')
+        self.assertEqual(heat.compatibility_key, (80., 'water'))
+        self.assertEqual(heat.label, 'Heating circuit')
+        self.assertEqual(Heat(temperature_level=-20, medium='air').temperature_level, -20.)
+
+    def test_compatibility(self):
+        first = Heat(label='Source', temperature_level=80., medium='water')
+        equivalent = Heat(label='Load', temperature_level=80., medium='WATER')
+        self.assertNotEqual(first.id, equivalent.id)
+        self.assertTrue(first.is_compatible_with(equivalent))
+        self.assertTrue(equivalent.is_compatible_with(first))
+        self.assertTrue(Heat().is_compatible_with(Heat()))
+        for other in [Heat(temperature_level=60, medium='water'),
+                      Heat(temperature_level=80, medium='steam'),
+                      Heat(temperature_level=80), Heat(medium='water'),
+                      Heat(), Electricity(), object()]:
+            self.assertFalse(first.is_compatible_with(other))
+
+    def test_invalid_temperature_medium_and_label(self):
+        for value in [-273.15, -300, float('nan'), float('inf')]:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                Heat(temperature_level=value)
+        for value in [True, np.bool_(True), '80', 80j, pd.Series([80])]:
+            with self.subTest(value=value), self.assertRaises(TypeError):
+                Heat(temperature_level=value)
+        for value in ['', '  ']:
+            with self.assertRaises(ValueError):
+                Heat(medium=value)
+        for value in [1, True, ['water']]:
+            with self.assertRaises(TypeError):
+                Heat(medium=value)
+        with self.assertRaises(TypeError):
+            Heat(label=123)
+
+    def test_compatible_heat_connections_and_system_registration(self):
+        source = Source(carrier=Heat(temperature_level=80, medium='water'))
+        bus = Bus(carrier=Heat(temperature_level=80, medium=' WATER '))
+        sink = Sink(carrier=Heat(temperature_level=80, medium='water'))
+        system = EnergySystem()
+        system.add_vertices([source, bus, sink])
+        edges = [Edge(source_port=source.output_ports[0], sink_port=bus.input_ports[0]),
+                 Edge(source_port=bus.output_ports[0], sink_port=sink.input_ports[0])]
+        system.add_edges(edges)
+        self.assertEqual(len(system.edges), 2)
+        for edge in edges:
+            self.assertIs(edge.energy_system, system)
+
+    def test_incompatible_heat_connections_and_registration_recheck(self):
+        for peer in [Heat(temperature_level=60, medium='water'),
+                     Heat(temperature_level=80, medium='air'), Heat()]:
+            source = Source(carrier=Heat(temperature_level=80, medium='water'))
+            sink = Sink(carrier=peer)
+            with self.assertRaises(ValueError):
+                Edge(source_port=source.output_ports[0], sink_port=sink.input_ports[0])
+            self.assertFalse(source.output_ports[0].is_connected)
+            self.assertFalse(sink.input_ports[0].is_connected)
+        source = Source(carrier=Heat(temperature_level=80, medium='water'))
+        sink = Sink(carrier=Heat(temperature_level=80, medium='water'))
+        edge = Edge(source_port=source.output_ports[0], sink_port=sink.input_ports[0])
+        system = EnergySystem()
+        system.add_vertices([source, sink])
+        sink.carrier.temperature_level = 60
+        with self.assertRaises(ValueError):
+            system.add_edge(edge)
+        self.assertEqual(len(system.edges), 0)
+
+    def test_native_heat_carrier_in_converters(self):
+        heat = Heat(temperature_level=80, medium='water')
+        source_heat = Heat(temperature_level=10, medium='air')
+        power = Electricity(voltage_level=400)
+        fuel = FuelCarrier()
+        models = [
+            Converter(input_carriers=source_heat, output_carriers=heat,
+                      input_conversion=1., output_conversion=.9),
+            HeatPump(input_carriers=[power, source_heat], output_carrier=heat,
+                     norm_cop=3., norm_supply_temperature=80, norm_source_temperature=10,
+                     source_temperature=10, temperature_unit='Celsius',
+                     heat_min_capacity=0, heat_max_capacity=100),
+            HeatBoiler(input_carrier=fuel, output_carrier=heat,
+                       power_min_efficiency=.7, power_max_efficiency=.9,
+                       power_min_capacity=10, power_max_capacity=100),
+            CombinedHeatPower(input_carrier=fuel, output_carriers=[power, heat],
+                              power_min_efficiency=.25, power_max_efficiency=.4,
+                              chp_total_efficiency=.9, power_min_capacity=10, power_max_capacity=100),
+        ]
+        for model in models:
+            with self.subTest(model=type(model).__name__):
+                port = next(p for p in model.output_ports if p.carrier is heat)
+                sink = Sink(carrier=Heat(temperature_level=80, medium='water'))
+                edge = Edge(source_port=port, sink_port=sink.input_ports[0])
+                system = EnergySystem(time_index=pd.RangeIndex(2))
+                system.add_vertices([model, sink])
+                system.add_edge(edge)
+                self.assertIs(system.get_edge(edge.id), edge)
 
 
 if __name__ == '__main__':
