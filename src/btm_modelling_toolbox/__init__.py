@@ -18,6 +18,7 @@ from .components.source import Source
 from .components.storage import Storage
 from .network.system import EnergySystem
 from .network.bus import Bus
+from .network.distribution import Distribution
 
 '''
 from .components.component import Component
@@ -53,5 +54,6 @@ __all__ = [
     "Source",
     "Storage",
     "Bus",
+    "Distribution",
     "EnergySystem",
 ]
